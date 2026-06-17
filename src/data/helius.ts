@@ -44,6 +44,13 @@ export class HeliusClient {
   }
 
   isConfigured(): boolean {
+    // Always "configured" — we use either Helius (preferred) or public RPC.
+    // Public RPC has rate limits (~100 req / 10s) but works for getSignatures +
+    // getTransaction at 30s poll intervals.
+    return Boolean(this.rpcUrl);
+  }
+
+  isUsingHelius(): boolean {
     return Boolean(this.apiKey);
   }
 
@@ -77,35 +84,45 @@ export class HeliusClient {
     limit: number = 100,
     before?: string
   ): Promise<ParsedSwap[]> {
-    if (!this.isConfigured()) {
-      console.warn('[helius] No API key configured — returning empty result. Set HELIUS_API_KEY in .env to enable live data.');
+    const provider = this.apiKey ? 'Helius' : 'public Solana RPC';
+    try {
+      const signatures = await this.rpc<any[]>(
+        'getSignaturesForAddress',
+        [
+          wallet,
+          { limit, ...(before ? { before } : {}) },
+        ]
+      );
+
+      if (!signatures || signatures.length === 0) return [];
+
+      const sigs = signatures
+        .filter((s: any) => !s.err)
+        .map((s: any) => s.signature);
+
+      const txs = await this.rpc<any[]>(
+        'getTransactions',
+        [sigs]
+      );
+
+      const swaps: ParsedSwap[] = [];
+      for (const tx of txs) {
+        const parsed = this.parseSwap(tx);
+        if (parsed) swaps.push(parsed);
+      }
+      return swaps;
+    } catch (err) {
+      // Public RPC often 429s or returns compressed tx we can't parse.
+      // Log once per call but don't crash the bot.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        // Only log rate-limit warnings occasionally to avoid spam
+        if (Math.random() < 0.1) console.warn(`[helius] ${provider} rate-limited`);
+      } else {
+        console.warn(`[helius] ${provider} error: ${msg.slice(0, 200)}`);
+      }
       return [];
     }
-    const signatures = await this.rpc<any[]>(
-      'getSignaturesForAddress',
-      [
-        wallet,
-        { limit, ...(before ? { before } : {}) },
-      ]
-    );
-
-    if (!signatures || signatures.length === 0) return [];
-
-    const sigs = signatures
-      .filter((s: any) => !s.err)
-      .map((s: any) => s.signature);
-
-    const txs = await this.rpc<any[]>(
-      'getTransactions',
-      [sigs]
-    );
-
-    const swaps: ParsedSwap[] = [];
-    for (const tx of txs) {
-      const parsed = this.parseSwap(tx);
-      if (parsed) swaps.push(parsed);
-    }
-    return swaps;
   }
 
   /**

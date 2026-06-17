@@ -11,8 +11,17 @@ export function openPosition(pos: Omit<Position, 'id'>): number {
       (@mint, @symbol, @entryPrice, @entryTimestamp, @amountSol, @amountTokens,
        @partialTaken, @highWaterPrice, @source, @contributingSignals, @status)
   `).run({
-    ...pos,
+    mint: pos.mint,
+    symbol: pos.symbol,
+    entryPrice: pos.entryPrice,
+    entryTimestamp: pos.entryTimestamp,
+    amountSol: pos.amountSol,
+    amountTokens: pos.amountTokens,
+    partialTaken: pos.partialTaken ? 1 : 0,
+    highWaterPrice: pos.highWaterPrice,
+    source: pos.source,
     contributingSignals: JSON.stringify(pos.contributingSignals),
+    status: pos.status,
   });
   return Number(result.lastInsertRowid);
 }
@@ -79,7 +88,25 @@ export function insertTrade(trade: Omit<Trade, 'id'>): number {
       (@mint, @symbol, @side, @price, @amountSol, @amountTokens, @timestamp,
        @signature, @source, @signalId, @simulatedSlippageBps, @simulatedPriorityFeeSol,
        @simulatedPlatformFeePct, @mode, @positionId, @pnlSol, @pnlPct)
-  `).run(trade);
+  `).run({
+    mint: trade.mint,
+    symbol: trade.symbol,
+    side: trade.side,
+    price: trade.price,
+    amountSol: trade.amountSol,
+    amountTokens: trade.amountTokens,
+    timestamp: trade.timestamp,
+    signature: trade.signature ?? null,
+    source: trade.source,
+    signalId: trade.signalId ?? null,
+    simulatedSlippageBps: trade.simulatedSlippageBps ?? null,
+    simulatedPriorityFeeSol: trade.simulatedPriorityFeeSol ?? null,
+    simulatedPlatformFeePct: trade.simulatedPlatformFeePct ?? null,
+    mode: trade.mode,
+    positionId: trade.positionId ?? null,
+    pnlSol: trade.pnlSol ?? null,
+    pnlPct: trade.pnlPct ?? null,
+  });
   return Number(result.lastInsertRowid);
 }
 

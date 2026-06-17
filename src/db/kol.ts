@@ -8,7 +8,18 @@ export function insertKolTrade(trade: KolTrade): boolean {
       (signature, wallet, mint, symbol, side, amount_sol, amount_tokens, price_usd, timestamp, detected_at)
     VALUES
       (@signature, @wallet, @mint, @symbol, @side, @amountSol, @amountTokens, @priceUsd, @timestamp, @detectedAt)
-  `).run(trade);
+  `).run({
+    signature: trade.signature,
+    wallet: trade.wallet,
+    mint: trade.mint,
+    symbol: trade.symbol ?? null,
+    side: trade.side,
+    amountSol: trade.amountSol,
+    amountTokens: trade.amountTokens,
+    priceUsd: trade.priceUsd ?? null,
+    timestamp: trade.timestamp,
+    detectedAt: trade.detectedAt,
+  });
   return result.changes > 0;
 }
 

@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    image: memecoin-trading-bot:latest
+    container_name: memecoin-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - bot-data:/app/data
+    environment:
+      - NODE_ENV=production
+      # Optional: override RPC URL to use a non-rate-limited endpoint
+      # - SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
+      - BOT_DB_PATH=/app/data/bot.db
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Run in paper mode by default. To go live, override:
+    # command: npx tsx src/cli.ts start --mode live
+    # Note: only do this after 30+ days of validated paper trading
+
+volumes:
+  bot-data:
+    driver: local

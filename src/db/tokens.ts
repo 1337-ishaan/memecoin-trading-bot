@@ -33,10 +33,24 @@ export function upsertTokenMeta(meta: TokenMeta): void {
       genre = excluded.genre,
       updated_at = excluded.updated_at
   `).run({
-    ...meta,
+    mint: meta.mint,
+    symbol: meta.symbol,
+    name: meta.name,
+    decimals: meta.decimals,
+    mcapUsd: meta.mcapUsd ?? null,
+    liquidityUsd: meta.liquidityUsd ?? null,
+    priceUsd: meta.priceUsd ?? null,
+    volume24hUsd: meta.volume24hUsd ?? null,
+    ath30dUsd: meta.ath30dUsd ?? null,
+    atl30dUsd: meta.atl30dUsd ?? null,
+    drawdownFromAth30d: meta.drawdownFromAth30d ?? null,
+    holderCount: meta.holderCount ?? null,
+    top10Concentration: meta.top10Concentration ?? null,
     mintAuthorityActive: meta.mintAuthorityActive === undefined ? null : meta.mintAuthorityActive ? 1 : 0,
     freezeAuthorityActive: meta.freezeAuthorityActive === undefined ? null : meta.freezeAuthorityActive ? 1 : 0,
     lpLocked: meta.lpLocked === undefined ? null : meta.lpLocked ? 1 : 0,
+    genre: meta.genre ?? null,
+    updatedAt: meta.updatedAt,
   });
 }
 

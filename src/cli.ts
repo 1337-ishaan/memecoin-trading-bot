@@ -71,9 +71,15 @@ Commands:
     --limit <n>      Number of signals to show (default 20)
   pnl                Show PnL breakdown
     --days <n>       Show last N days (default 30)
-  backtest           Backtest a KOL wallet's trades
-    --kol <address>  KOL wallet address
-    --days <n>       Days to backtest (default 30)
+  backfill           Backfill KOL trades + token meta from on-chain
+    --kol <address>  Backfill a specific KOL (default: all in KOL_WALLETS)
+    --days <n>       Days to backfill (default 7)
+    --signals        Also emit signals for recent trades
+  demo               Run a synthetic paper trade through the full pipeline
+    --mint <addr>    Token mint (default: pick a real memecoin)
+    --amount <sol>   Trade size in SOL (default 2.0)
+    --skip-telegram  Don't send Telegram alert
+  seed-tokens        Seed token meta cache with well-known memecoins
   send-test          Send a test alert to Telegram (verifies bot setup)
   config             Show current configuration
   help               Show this help
@@ -274,6 +280,29 @@ async function cmdSendTest(): Promise<void> {
   }
 }
 
+async function cmdDemo(flags: Record<string, string | boolean>): Promise<void> {
+  const { runDemo } = await import('./cli-commands/demo.js');
+  await runDemo({
+    kolWallet: flags.kol as string | undefined,
+    tokenMint: flags.mint as string | undefined,
+    amountSol: flags.amount ? parseFloat(String(flags.amount)) : undefined,
+    skipTelegram: flags['skip-telegram'] === true,
+  });
+  closeDb();
+}
+
+async function cmdBackfill(flags: Record<string, string | boolean>): Promise<void> {
+  const { backfillFromFlags } = await import('./cli-commands/backfill.js');
+  await backfillFromFlags(flags);
+  closeDb();
+}
+
+async function cmdSeedTokens(): Promise<void> {
+  const { runSeedTokens } = await import('./cli-commands/seed-tokens.js');
+  await runSeedTokens();
+  closeDb();
+}
+
 function cmdConfig(): void {
   const cfg = loadConfig();
   console.log('\n=== CONFIG ===');
@@ -314,6 +343,15 @@ async function main(): Promise<void> {
         break;
       case 'backtest':
         await cmdBacktest(flags);
+        break;
+      case 'backfill':
+        await cmdBackfill(flags);
+        break;
+      case 'demo':
+        await cmdDemo(flags);
+        break;
+      case 'seed-tokens':
+        await cmdSeedTokens();
         break;
       case 'send-test':
         await cmdSendTest();

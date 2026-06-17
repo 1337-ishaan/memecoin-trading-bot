@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.memecoin-bot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-lc</string>
+        <string>cd /Users/ishaanparmar/Desktop/projects/memecoin-trading && exec npx tsx src/cli.ts start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/ishaanparmar/Desktop/projects/memecoin-trading</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/ishaanparmar/.nvm/versions/node/v20.19.2/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/ishaanparmar/Desktop/projects/memecoin-trading/data/bot.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/ishaanparmar/Desktop/projects/memecoin-trading/data/bot.log</string>
+</dict>
+</plist>

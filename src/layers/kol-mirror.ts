@@ -40,10 +40,6 @@ export class KolMirrorLayer {
    * Called periodically by the bot loop.
    */
   async poll(): Promise<number> {
-    if (!this.helius.isConfigured()) {
-      return 0;
-    }
-
     let totalSignals = 0;
     for (const wallet of this.kolWallets) {
       try {
