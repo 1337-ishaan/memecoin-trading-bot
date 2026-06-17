@@ -24,6 +24,7 @@ import { DexScreenerClient } from './data/dexscreener.js';
 import { BirdeyeClient } from './data/birdeye.js';
 import { JupiterClient } from './data/jupiter.js';
 import { PriceOracle } from './data/oracle.js';
+import { TelegramClient, TelegramAlerts } from './notifications/telegram.js';
 import { loadConfig } from './config/index.js';
 
 const TICK_INTERVAL_MS = 30_000; // 30s
@@ -42,6 +43,7 @@ export class Bot {
   private risk!: RiskManager;
   private aggregator!: SignalAggregator;
   private paper!: PaperTradeEngine;
+  private telegram!: TelegramClient;
 
   async start(): Promise<void> {
     if (this.running) return;
@@ -62,6 +64,7 @@ export class Bot {
     this.risk = new RiskManager();
     this.aggregator = new SignalAggregator();
     this.paper = new PaperTradeEngine(this.oracle, this.risk, this.gakeLayer);
+    this.telegram = new TelegramClient();
 
     const cfg = loadConfig();
     console.log('========================================');
@@ -74,6 +77,7 @@ export class Bot {
     console.log(`Strategy:    kol=${cfg.WEIGHT_KOL_MIRROR} gake=${cfg.WEIGHT_STRATEGY_REPL} meta=${cfg.WEIGHT_META_CYCLE} anomaly=${cfg.WEIGHT_ANOMALY}`);
     console.log(`Threshold:   ${cfg.SIGNAL_CONFIDENCE_THRESHOLD}`);
     console.log(`Risk:        maxPos=${cfg.MAX_POSITION_PCT}% dailyLoss=${cfg.DAILY_LOSS_LIMIT_PCT}% drawdownKill=${cfg.DRAWDOWN_KILL_SWITCH_PCT}% cashReserve=${cfg.CASH_RESERVE_PCT}%`);
+    console.log(`Telegram:    ${this.telegram.isConfigured() ? 'enabled' : 'disabled (set TELEGRAM_* in .env)'}`);
     console.log(`Tick:        ${TICK_INTERVAL_MS / 1000}s`);
     console.log('========================================\n');
 
@@ -82,15 +86,22 @@ export class Bot {
       console.warn('   Set HELIUS_API_KEY in .env to enable live wallet mirroring.\n');
     }
 
+    // Notify Telegram that bot started
+    await this.telegram.send(TelegramAlerts.botStarted(cfg.TRADING_MODE, this.kolLayer.getTrackedWallets().length));
+
     // Main loop
     while (this.running) {
       try {
         await this.tick();
       } catch (err) {
         console.error('[bot] tick error:', err);
+        await this.telegram.send(TelegramAlerts.error('bot tick', err));
       }
       if (this.running) await this.sleep(TICK_INTERVAL_MS);
     }
+
+    // Notify Telegram that bot stopped
+    await this.telegram.send(TelegramAlerts.botStopped('shutdown signal received'));
   }
 
   stop(): void {
@@ -129,21 +140,64 @@ export class Bot {
 
       if (agg.side === 'buy') {
         const result = await this.paper.processBuy(agg);
-        if (result) buysExecuted++;
+        if (result) {
+          buysExecuted++;
+          await this.telegram.send(
+            TelegramAlerts.tradeExecuted(
+              'buy',
+              result.trade.symbol,
+              result.trade.mint,
+              result.trade.amountSol,
+              result.trade.price,
+              undefined,
+              result.trade.source
+            )
+          );
+        }
       } else {
         const result = await this.paper.processSell(agg);
-        if (result) sellsExecuted++;
+        if (result) {
+          sellsExecuted++;
+          await this.telegram.send(
+            TelegramAlerts.tradeExecuted(
+              'sell',
+              result.symbol,
+              result.mint,
+              result.amountSol,
+              result.price,
+              result.pnlSol,
+              result.source
+            )
+          );
+        }
       }
       this.aggregator.markConsumed(agg.contributingSignals);
     }
 
     // 5. Check open positions for Gake-rule exits
     const exits = await this.paper.checkOpenPositions();
-    sellsExecuted += exits.length;
+    for (const exit of exits) {
+      sellsExecuted++;
+      await this.telegram.send(
+        TelegramAlerts.tradeExecuted(
+          'sell',
+          exit.symbol,
+          exit.mint,
+          exit.amountSol,
+          exit.price,
+          exit.pnlSol,
+          `${exit.source} (Gake-rule exit)`
+        )
+      );
+    }
 
-    // 6. Update peak
+    // 6. Update peak + check kill switch
     const portfolio = this.risk.computePortfolio(new Map());
     this.risk.recordPeak(portfolio.totalSol);
+
+    if (portfolio.drawdownPct <= -loadConfig().DRAWDOWN_KILL_SWITCH_PCT / 100) {
+      await this.telegram.send(TelegramAlerts.killSwitch(portfolio.drawdownPct * 100));
+    }
 
     if (buysExecuted || sellsExecuted || newKolSignals) {
       console.log(

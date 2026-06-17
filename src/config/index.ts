@@ -50,6 +50,14 @@ const envSchema = z.object({
   MAESTRO_API_URL: z.string().optional().default(''),
   MAESTRO_API_KEY: z.string().optional().default(''),
 
+  // Telegram notifications (optional)
+  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
+  TELEGRAM_CHAT_ID: z.string().optional().default(''),
+  TELEGRAM_ENABLED: z
+    .union([z.boolean(), z.string()])
+    .transform((v) => v === true || v === 'true' || v === '1')
+    .default(false),
+
   // Paper-trade starting capital
   PAPER_INITIAL_SOL: z.coerce.number().min(1).default(100),
 });

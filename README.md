@@ -49,8 +49,30 @@ npm run cli -- status             # Show current portfolio + open positions
 npm run cli -- signals            # Show recent signals (last 24h)
 npm run cli -- pnl                # Show PnL breakdown
 npm run cli -- backtest --kol <address> --days 30   # Backtest a KOL wallet
+npm run cli -- send-test          # Send a test alert to Telegram
 npm run cli -- config             # Show current configuration
 ```
+
+## Telegram alerts (optional)
+
+Get real-time notifications on your phone when the bot trades, when risk events fire, or when it starts/stops.
+
+Setup:
+1. Open Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, follow prompts to get a bot token.
+2. Copy the token to `TELEGRAM_BOT_TOKEN` in `.env`.
+3. Open a chat with your new bot and send any message.
+4. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` — find your `chat.id` in the JSON response.
+5. Copy the chat id to `TELEGRAM_CHAT_ID` in `.env`.
+6. Set `TELEGRAM_ENABLED=true` in `.env`.
+7. Run `npm run cli -- send-test` — you should see a 🧪 Test alert message in your Telegram.
+
+Alerts fire on:
+- Bot started / stopped
+- Every executed buy / sell (with mint, size, price, PnL)
+- Drawdown kill switch triggered
+- Bot errors
+
+The client is fire-and-forget — failed sends are logged but never crash the bot.
 
 ## Strategy
 

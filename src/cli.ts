@@ -22,6 +22,7 @@ import { getOpenPositions, getRecentTrades } from './db/positions.js';
 import { getRecentSignals } from './db/signals.js';
 import { getPortfolioState } from './db/state.js';
 import { Bot } from './index.js';
+import { TelegramClient } from './notifications/telegram.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -73,12 +74,14 @@ Commands:
   backtest           Backtest a KOL wallet's trades
     --kol <address>  KOL wallet address
     --days <n>       Days to backtest (default 30)
+  send-test          Send a test alert to Telegram (verifies bot setup)
   config             Show current configuration
   help               Show this help
 
 Default: bot runs in paper mode (no real money). Set HELIUS_API_KEY
 in .env to enable live KOL mirroring. To go live, set TRADING_MODE=live
-and configure an execution platform.
+and configure an execution platform. To enable Telegram alerts, set
+TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, and TELEGRAM_ENABLED=true.
 `);
 }
 
@@ -243,6 +246,34 @@ async function cmdBacktest(flags: Record<string, string | boolean>): Promise<voi
   closeDb();
 }
 
+async function cmdSendTest(): Promise<void> {
+  console.log('Sending test alert to Telegram...');
+  const client = new TelegramClient();
+  if (!client.isConfigured()) {
+    const cfg = loadConfig();
+    console.error('\n❌ Telegram is not configured. To set it up:\n');
+    console.error('  1. Open Telegram, message @BotFather, send /newbot, follow prompts');
+    console.error('  2. Copy the bot token to TELEGRAM_BOT_TOKEN in .env');
+    console.error('  3. Message your new bot, then visit:');
+    console.error(`     https://api.telegram.org/bot${cfg.TELEGRAM_BOT_TOKEN || '<TOKEN>'}/getUpdates`);
+    console.error('     to find your chat_id, copy to TELEGRAM_CHAT_ID');
+    console.error('  4. Set TELEGRAM_ENABLED=true in .env');
+    console.error('  5. Run: npm run cli -- send-test\n');
+    console.error('Current values:');
+    console.error(`  TELEGRAM_BOT_TOKEN: ${cfg.TELEGRAM_BOT_TOKEN ? '***' + cfg.TELEGRAM_BOT_TOKEN.slice(-4) : '(empty)'}`);
+    console.error(`  TELEGRAM_CHAT_ID:  ${cfg.TELEGRAM_CHAT_ID || '(empty)'}`);
+    console.error(`  TELEGRAM_ENABLED:   ${cfg.TELEGRAM_ENABLED}`);
+    process.exit(1);
+  }
+  const result = await client.sendTest();
+  if (result.ok) {
+    console.log('✅ Test alert sent. Check your Telegram.');
+  } else {
+    console.error(`❌ Failed: ${result.error}`);
+    process.exit(1);
+  }
+}
+
 function cmdConfig(): void {
   const cfg = loadConfig();
   console.log('\n=== CONFIG ===');
@@ -283,6 +314,9 @@ async function main(): Promise<void> {
         break;
       case 'backtest':
         await cmdBacktest(flags);
+        break;
+      case 'send-test':
+        await cmdSendTest();
         break;
       case 'config':
         cmdConfig();
