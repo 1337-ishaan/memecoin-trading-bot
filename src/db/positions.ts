@@ -47,7 +47,8 @@ export function updatePosition(id: number, updates: Partial<Position>): void {
     const col = fieldMap[key];
     if (!col) continue;
     setClauses.push(`${col} = @${key}`);
-    values[key] = value;
+    // better-sqlite3 doesn't support booleans — convert to 0/1
+    values[key] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
   }
 
   if (setClauses.length === 0) return;
