@@ -78,6 +78,7 @@ export class HeliusClient {
   /**
    * Get parsed transaction history for a wallet.
    * Returns up to `limit` transactions, most recent first.
+   * Uses batched `getTransactions` on Helius, falls back to per-sig `getTransaction` on public RPC.
    */
   async getTransactionsForWallet(
     wallet: string,
@@ -100,10 +101,26 @@ export class HeliusClient {
         .filter((s: any) => !s.err)
         .map((s: any) => s.signature);
 
-      const txs = await this.rpc<any[]>(
-        'getTransactions',
-        [sigs]
-      );
+      let txs: any[];
+      if (this.apiKey) {
+        // Helius supports batched getTransactions
+        txs = await this.rpc<any[]>('getTransactions', [sigs]);
+      } else {
+        // Public RPC requires per-sig getTransaction (slower but works)
+        // Run sequentially to avoid rate limits
+        txs = [];
+        for (const sig of sigs) {
+          try {
+            const tx = await this.rpc<any>('getTransaction', [
+              sig,
+              { encoding: 'json', maxSupportedTransactionVersion: 0 },
+            ]);
+            if (tx) txs.push(tx);
+          } catch {
+            // skip individual failures
+          }
+        }
+      }
 
       const swaps: ParsedSwap[] = [];
       for (const tx of txs) {

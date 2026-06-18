@@ -60,32 +60,58 @@ export class TelegramClient {
   /**
    * Send an alert. Returns true on success, false on failure (or if not configured).
    * Never throws — failure to send must not crash the bot.
+   * Retries up to 3 times with exponential backoff on network errors.
    */
   async send(alert: Alert): Promise<boolean> {
     if (!this.enabled) return false;
-    try {
-      const text = this.format(alert);
-      const url = `${TELEGRAM_API}/bot${this.botToken}/sendMessage`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: this.chatId,
-          text,
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-        }),
-      });
-      if (!response.ok) {
+    const text = this.format(alert);
+    const url = `${TELEGRAM_API}/bot${this.botToken}/sendMessage`;
+
+    const maxAttempts = 3;
+    const baseTimeoutMs = 15_000; // 15s per attempt, generous for slow networks
+    let lastError: string = '';
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), baseTimeoutMs);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: this.chatId,
+            text,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          return true;
+        }
         const body = await response.text();
-        console.warn(`[telegram] send failed ${response.status}: ${body}`);
-        return false;
+        // 4xx errors (except 429) are not retryable
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          console.warn(`[telegram] non-retryable ${response.status}: ${body.slice(0, 200)}`);
+          return false;
+        }
+        // 5xx + 429 are retryable
+        lastError = `${response.status}: ${body.slice(0, 200)}`;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        lastError = msg;
+        // Network errors: retry
       }
-      return true;
-    } catch (err) {
-      console.warn(`[telegram] send error:`, err);
-      return false;
+      if (attempt < maxAttempts) {
+        const backoff = 1000 * Math.pow(2, attempt - 1);
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
+    console.warn(`[telegram] send failed after ${maxAttempts} attempts: ${lastError}`);
+    return false;
   }
 
   /**

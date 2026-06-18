@@ -53,17 +53,29 @@ export class PriceOracle {
     // Refresh metadata
     let meta: TokenMeta | null = cached;
     if (!meta || Date.now() - meta.updatedAt > 5 * 60_000) {
-      const fresh = await this.dexscreener.getTokenMeta(mint);
-      if (fresh) {
-        meta = fresh;
-        upsertTokenMeta(fresh);
+      try {
+        const fresh = await this.dexscreener.getTokenMeta(mint);
+        if (fresh) {
+          meta = fresh;
+          upsertTokenMeta(fresh);
+        }
+      } catch (err) {
+        console.warn(`[oracle] DexScreener refresh failed for ${mint.slice(0, 8)}...: ${(err as Error).message.slice(0, 100)}`);
       }
     }
 
     if (!meta) return null;
 
-    // Try Jupiter for real-time quote (price impact)
-    const jupQuote = await this.jupiter.getSolToTokenPrice(mint, solAmount);
+    // Try Jupiter for real-time quote (price impact) — gracefully fall back on failure
+    let jupQuote: { pricePerTokenSol: number; priceImpactPct: number } | null = null;
+    try {
+      jupQuote = await this.jupiter.getSolToTokenPrice(mint, solAmount);
+    } catch (err) {
+      // Network/DNS failure — log once per minute, then fall back
+      if (Math.random() < 0.1) {
+        console.warn(`[oracle] Jupiter unavailable: ${(err as Error).message.slice(0, 80)}`);
+      }
+    }
 
     if (jupQuote && meta.priceUsd) {
       // Cross-check: Jupiter price (via SOL) vs DexScreener price (USD)
