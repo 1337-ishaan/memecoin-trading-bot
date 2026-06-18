@@ -80,6 +80,7 @@ Commands:
     --amount <sol>   Trade size in SOL (default 2.0)
     --skip-telegram  Don't send Telegram alert
   seed-tokens        Seed token meta cache with well-known memecoins
+  refresh            Refresh token meta + 30d ATH from Birdeye for cached tokens
   send-test          Send a test alert to Telegram (verifies bot setup)
   config             Show current configuration
   help               Show this help
@@ -303,6 +304,12 @@ async function cmdSeedTokens(): Promise<void> {
   closeDb();
 }
 
+async function cmdRefresh(): Promise<void> {
+  const { runRefresh } = await import('./cli-commands/refresh.js');
+  await runRefresh();
+  closeDb();
+}
+
 function cmdConfig(): void {
   const cfg = loadConfig();
   console.log('\n=== CONFIG ===');
@@ -352,6 +359,9 @@ async function main(): Promise<void> {
         break;
       case 'seed-tokens':
         await cmdSeedTokens();
+        break;
+      case 'refresh':
+        await cmdRefresh();
         break;
       case 'send-test':
         await cmdSendTest();
